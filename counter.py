@@ -16,7 +16,6 @@ def is_verb(word):
     pos_info = pos_tag([word])
     return pos_info[0][1] == 'VB'
 
-Path = ''
 
 def get_trees(_path, with_filenames=False, with_file_content=False):
     trees = []
