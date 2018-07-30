@@ -1,9 +1,8 @@
 import ast
 import os
 import collections
-
 from nltk import pos_tag
-
+import glob
 
 def flat(_list):
     """ [(1,2), (3,4)] -> [1, 2, 3, 4]"""
@@ -19,7 +18,6 @@ def is_verb(word):
 
 def get_trees(_path, with_filenames=False, with_file_content=False):
     trees = []
-    import glob
     filenames = [file_name for file_name in glob.glob(path + '/**/*.py', recursive=True)[:100]]
     for filename in filenames:
         with open(filename, 'r', encoding='utf-8') as attempt_handler:
