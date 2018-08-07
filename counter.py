@@ -13,20 +13,30 @@ def is_verb(word):
     if not word:
         return False
     pos_info = pos_tag([word])
-    return pos_info[0][1] == 'VB'
+    return pos_info[0][1] in ('VB', 'VBD', 'VBG', 'VBN', 'VBP')
+
+
+def get_python_files():
+    filenames = [file_name for file_name in glob.glob(path + '/**/*.py', recursive=True)]
+    return filenames
+
+
+def get_file_content(filename):
+    with open(filename, 'r', encoding='utf-8') as attempt_handler:
+        main_file_content = attempt_handler.read()
+    try:
+        tree = ast.parse(main_file_content)
+    except SyntaxError as e:
+        print(e)
+        tree = None
+    return main_file_content, tree
 
 
 def get_trees(_path, with_filenames=False, with_file_content=False):
     trees = []
-    filenames = [file_name for file_name in glob.glob(path + '/**/*.py', recursive=True)[:100]]
+    filenames = get_python_files()
     for filename in filenames:
-        with open(filename, 'r', encoding='utf-8') as attempt_handler:
-            main_file_content = attempt_handler.read()
-        try:
-            tree = ast.parse(main_file_content)
-        except SyntaxError as e:
-            print(e)
-            tree = None
+        main_file_content, tree = get_file_content(filename)
         if with_filenames:
             if with_file_content:
                 trees.append((filename, main_file_content, tree))
@@ -45,9 +55,17 @@ def get_verbs_from_function_name(function_name):
     return [word for word in function_name.split('_') if is_verb(word)]
 
 
+def magic_name(f):
+    return not (f.startswith('__') and f.endswith('__'))
+
+
+def separate_to_node(t):
+    return [node.name.lower() for node in ast.walk(t) if isinstance(node, ast.FunctionDef)]
+
+
 def get_all_words_in_path(path):
     trees = [t for t in get_trees(path) if t]
-    function_names = [f for f in flat([get_all_names(t) for t in trees]) if not (f.startswith('__') and f.endswith('__'))]
+    function_names = [func for func in flat([get_all_names(t) for t in trees]) if magic_name(func)]
     def split_snake_case_name_to_words(name):
         return [n for n in name.split('_') if n]
     return flat([split_snake_case_name_to_words(function_name) for function_name in function_names])
@@ -55,16 +73,19 @@ def get_all_words_in_path(path):
 
 def get_top_verbs_in_path(path, top_size=10):
     trees = [t for t in get_trees(path) if t]
-    fncs = [f for f in flat([[node.name.lower() for node in ast.walk(t) if isinstance(node, ast.FunctionDef)] for t in trees]) if not (f.startswith('__') and f.endswith('__'))]
-    verbs = flat([get_verbs_from_function_name(function_name) for function_name in fncs])
+    functions = [func for func in flat([separate_to_node(t) for t in trees]) if magic_name(func)]
+    verbs = flat([get_verbs_from_function_name(function_name) for function_name in functions])
     return collections.Counter(verbs).most_common(top_size)
+
+
 def get_top_functions_names_in_path(path, top_size=10):
     t = get_trees(path)
-    nms = [f for f in flat([[node.name.lower() for node in ast.walk(t) if isinstance(node, ast.FunctionDef)] for t in t]) if not (f.startswith('__') and f.endswith('__'))]
-    return collections.Counter(nms).most_common(top_size)
+    names = [f for f in flat([separate_to_node(t) for t in t]) if magic_name(f)]
+    return collections.Counter(names).most_common(top_size)
+
 
 if __name__ == "__main__":
-    wds = []
+    words = []
     projects = [
         'django',
         'flask',
@@ -75,9 +96,9 @@ if __name__ == "__main__":
 ]
     for project in projects:
         path = os.path.join('.', project)
-        wds += get_top_verbs_in_path(path)
+        words += get_top_verbs_in_path(path)
 
     top_size = 200
-    print('total %s words, %s unique' % (len(wds), len(set(wds))))
-    for word, occurence in collections.Counter(wds).most_common(top_size):
+    print('total %s words, %s unique' % (len(words), len(set(words))))
+    for word, occurence in collections.Counter(words).most_common(top_size):
         print(word, occurence)
